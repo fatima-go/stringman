@@ -25,8 +25,7 @@ package stringman
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
-	"log"
+	"github.com/stretchr/testify/assert"
 	"os"
 	"path/filepath"
 	"strings"
@@ -113,6 +112,9 @@ create table city (
         WHERE member_type={MemberType}
         LIMIT 10
     </text>
+<text id="CompleteFormatText">
+        hello %s. your level is %d
+    </text>
 </query>
 `)
 
@@ -133,11 +135,11 @@ func prepareXmlFile() (string, error) {
 	tempDir := os.TempDir()
 	clearPreviousXmlFiles(tempDir, "*.xml")
 
-	file, _ := ioutil.TempFile(tempDir, xmlFilePrefix)
+	file, _ := os.CreateTemp(tempDir, xmlFilePrefix)
 	xmlFile := file.Name() + ".xml"
 	os.Rename(file.Name(), xmlFile)
 
-	err := ioutil.WriteFile(xmlFile, []byte(xmlSample), 0644)
+	err := os.WriteFile(xmlFile, []byte(xmlSample), 0644)
 	if err != nil {
 		return xmlFile, err
 	}
@@ -176,17 +178,12 @@ func TestBuildStringman(t *testing.T) {
 }
 
 func TestBasic(t *testing.T) {
-	err := updateAlbum()
-	if err != nil {
-		t.Errorf("fail updateAlbum : %s\n", err.Error())
-		return
-	}
+	err := updateAlbum(t)
+	assert.Nil(t, err)
 }
 
 // UPDATE album SET score={Score} WHERE id={Id}
-func updateAlbum() error {
-	expect := "UPDATE album SET score='Hello' WHERE id=1234"
-
+func updateAlbum(t *testing.T) error {
 	p := BuildParam{}
 	p["Score"] = "Hello"
 	p["Id"] = 1234
@@ -195,10 +192,7 @@ func updateAlbum() error {
 		return err
 	}
 
-	if built != expect {
-		return fmt.Errorf("want=[%s], result=[%s]", expect, built)
-	}
-
+	assert.Equal(t, "UPDATE album SET score='Hello' WHERE id=1234", built)
 	return nil
 }
 
@@ -209,15 +203,15 @@ func TestVariableParams(t *testing.T) {
 	p["Age"] = 1234
 	p["IsMan"] = false
 	p["Percentage"] = 16.72
-	p["CreateTime"] = time.Now()
-	p["UpdateTime"] = time.Now()
+	p["CreateTime"] = time.Date(2024, 12, 1, 12, 0, 0, 0, time.Local)
+	p["UpdateTime"] = time.Date(2024, 12, 1, 12, 0, 0, 0, time.Local)
 	built, err := stringManager.BuildWithStmt("insertCity", p)
 	if err != nil {
 		t.Errorf("error : %s", err.Error())
 		return
 	}
 
-	log.Printf("built=[%s]\n", built)
+	assert.Equal(t, built, "INSERT INTO CITY(NAME,AGE,IS_MAN,PERCENTAGE,CREATE_TIME,UPDATE_TIME) VALUES('Hello',1234,false,16.720000,'2024-12-01 12:00:00','2024-12-01 12:00:00')")
 }
 
 func TestInvalidBuildParam(t *testing.T) {
@@ -225,53 +219,64 @@ func TestInvalidBuildParam(t *testing.T) {
 	p["Unknown"] = 32
 	p["Names"] = "name test will use array.. (TODO)"
 	_, err := stringManager.BuildWithStmt("selectCityWithInClause", p)
-	if err == nil {
-		t.Errorf("want err but nil")
+	if !assert.NotNil(t, err) {
 		return
 	}
 
-	if !strings.HasPrefix(err.Error(), "not found param") {
-		t.Errorf("error is not wanted : %s", err.Error())
-		return
-	}
+	assert.True(t, strings.HasPrefix(err.Error(), "not found param"))
 }
 
 func TestMultipleBind(t *testing.T) {
-	expect := "SELECT * FROM CITY WHERE Age > 32 AND Age < 32 AND NAME IN ('hello')"
-
 	p := make(map[string]interface{})
 	p["Age"] = 32
 	p["Names"] = "hello"
 	built, err := stringManager.BuildWithStmt("selectCityWithInClause", p)
-	if err != nil {
-		t.Errorf("fail to build : %s", err.Error())
+	if !assert.Nil(t, err) {
 		return
 	}
 
-	if !strings.HasPrefix(built, expect) {
-		t.Errorf("want=[%s], result=[%s]", expect, built)
-		return
-	}
+	assert.True(t, strings.HasPrefix(built, "SELECT * FROM CITY WHERE Age > 32 AND Age < 32 AND NAME IN ('hello')"))
 }
 
 func TestSample(t *testing.T) {
 	//expect := "SELECT * FROM CITY WHERE Age > 32 AND Age < 32 AND NAME IN ('hello')"
 
-	selectSampleMembers()
+	selectSampleMembers(t)
 }
 
-func selectSampleMembers() error {
+func selectSampleMembers(t *testing.T) {
 	p := make(map[string]interface{})
 	p["MemberType"] = "TID"
 	built, err := stringManager.Build(p)
+	if !assert.Nil(t, err) {
+		return
+	}
+
+	assert.True(t, strings.Contains(built, "WHERE member_type='TID'"))
+}
+
+func TestFormat(t *testing.T) {
+	err := completeFormatText(t)
+	assert.Nil(t, err)
+	err = completeFormatTextWithStmt(t, "completeFormatText")
+}
+
+func completeFormatText(t *testing.T) error {
+	built, err := stringManager.Format("fatima-go", 4)
 	if err != nil {
 		return err
 	}
 
-	log.Printf("built : %s\n", built)
-	//if built != expect {
-	//	return fmt.Errorf("want=[%s], result=[%s]", expect, built)
-	//}
+	assert.Equal(t, "hello fatima-go. your level is 4", built)
+	return nil
+}
 
+func completeFormatTextWithStmt(t *testing.T, stmtId string) error {
+	built, err := stringManager.FormatWithStmt(stmtId, "fatima-go", 4)
+	if err != nil {
+		return err
+	}
+
+	assert.Equal(t, "hello fatima-go. your level is 4", built)
 	return nil
 }

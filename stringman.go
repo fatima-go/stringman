@@ -134,6 +134,28 @@ func (man *StringMan) BuildWithStmt(stmtIdOrUserQuery string, param BuildParam) 
 	return completeText(stmt, param)
 }
 
+func (man *StringMan) Format(param ...interface{}) (string, error) {
+	pc, _, _, _ := runtime.Caller(1)
+	funcName := findFunctionName(pc)
+	return man.FormatWithStmt(funcName, param...)
+}
+
+func (man *StringMan) FormatWithStmt(stmtIdOrUserQuery string, param ...interface{}) (string, error) {
+	stmt, err := man.find(stmtIdOrUserQuery)
+	if err != nil {
+		return "", err
+	}
+
+	if param == nil || len(param) == 0 {
+		if len(stmt.columnMention) != 0 {
+			return stmt.Query, fmt.Errorf("need parameter for completing text")
+		}
+		return stmt.Query, nil
+	}
+
+	return fmt.Sprintf(stmt.Query, param...), nil
+}
+
 func (man *StringMan) Close() error {
 	return nil
 }
