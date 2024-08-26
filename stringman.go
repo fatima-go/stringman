@@ -146,13 +146,6 @@ func (man *StringMan) FormatWithStmt(stmtIdOrUserQuery string, param ...interfac
 		return "", err
 	}
 
-	if param == nil || len(param) == 0 {
-		if len(stmt.columnMention) != 0 {
-			return stmt.Query, fmt.Errorf("need parameter for completing text")
-		}
-		return stmt.Query, nil
-	}
-
 	return fmt.Sprintf(stmt.Query, param...), nil
 }
 
