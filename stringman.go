@@ -134,6 +134,21 @@ func (man *StringMan) BuildWithStmt(stmtIdOrUserQuery string, param BuildParam) 
 	return completeText(stmt, param)
 }
 
+func (man *StringMan) Format(param ...interface{}) (string, error) {
+	pc, _, _, _ := runtime.Caller(1)
+	funcName := findFunctionName(pc)
+	return man.FormatWithStmt(funcName, param...)
+}
+
+func (man *StringMan) FormatWithStmt(stmtIdOrUserQuery string, param ...interface{}) (string, error) {
+	stmt, err := man.find(stmtIdOrUserQuery)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf(stmt.Query, param...), nil
+}
+
 func (man *StringMan) Close() error {
 	return nil
 }
